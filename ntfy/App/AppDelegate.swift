@@ -1,10 +1,12 @@
 import UIKit
+import ActivityKit
 import SafariServices
 import UserNotifications
 import Firebase
 import FirebaseCore
 import FirebaseMessaging
 import CoreData
+import OSLog
 
 class AppDelegate: UIResponder, UIApplicationDelegate, ObservableObject {
     private let tag = "AppDelegate"
@@ -16,6 +18,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate, ObservableObject {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         Log.d(tag, "Launching AppDelegate")
 
+        LiveActivityManager.shared.getPushToStartToken()
+        observeActivityPushTokenAndState()
+        
         FirebaseApp.configure()
         FirebaseConfiguration.shared.setLoggerLevel(.max)
 
@@ -149,6 +154,24 @@ extension AppDelegate: MessagingDelegate {
                     Messaging.messaging().subscribe(toTopic: topic)
                 } else {
                     Messaging.messaging().subscribe(toTopic: topicHash(baseUrl: baseUrl, topic: topic))
+                }
+            }
+        }
+    }
+}
+
+extension AppDelegate {
+    func observeActivityPushTokenAndState() {
+        Task {
+            for await activity in Activity<MywidgetAttributes>.activityUpdates {
+                Task {
+                    for await tokenData in activity.pushTokenUpdates {
+                        let token = tokenData.map {String(format: "%02x", $0)}.joined()
+                        print("Observer Activity:\(activity.id) Push token: \(token)")
+                        Logger.liveactivity.info("Observer Activity:\(activity.id, privacy: .public) Push token: \(token,privacy: .public)")
+                        //send this token to your notification server
+                        Send2Server.send(token: token, addr: "push-to-update-token")
+                    }
                 }
             }
         }
